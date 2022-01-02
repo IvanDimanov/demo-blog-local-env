@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  mongodb-service:
+    image : mongo:5.0.3-focal
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: local_mongodb_username
+      MONGO_INITDB_ROOT_PASSWORD: 7fb1258a8981479da94b71f36fb9195e
+    volumes:
+      # Makes sure we have the same DB when we start the app.
+      # Whenever we want to recreate the DB - we just can delete the folder.
+      # We can easily simulate other environments (`dev`, `qa`, `production`) or localhost of colleagues
+      # simply by exchange .zip files of the DB. 
+      - ./data/db:/data/db
+    ports:
+      - 27017:27017
+    restart: unless-stopped
+
+
+  db-migrations-service:
+    build:
+      context: ../demo-blog-db-migrations
+      dockerfile: ../demo-blog-local-env/db-migrations.Dockerfile
+    environment:
+      MONGODB_URI: mongodb://local_mongodb_username:7fb1258a8981479da94b71f36fb9195e@mongodb-service:27017/blogs?authSource=admin
+    volumes:
+      - ../demo-blog-db-migrations:/demo-blog-db-migrations/
+    depends_on:
+      - mongodb-service
+
+
+  backend-service:
+    build:
+      context: ../demo-blog-backend
+      dockerfile: ../demo-blog-local-env/backend.Dockerfile
+    environment:
+      # Server
+      NODE_ENV: production
+      PORT: '8000'
+      HOST: '0.0.0.0'
+
+      # Data Base
+      MONGODB_URI: mongodb://local_mongodb_username:7fb1258a8981479da94b71f36fb9195e@mongodb-service:27017/blogs?authSource=admin
+
+      # API
+      ENABLE_CORS: 'true'
+      ENABLE_SWAGGER: 'true'
+      SWAGGER_HOST: localhost:8000
+      SWAGGER_DEFAULT_SCHEME: HTTP
+    volumes:
+      - ../demo-blog-backend:/demo-blog-backend/
+    depends_on:
+      - mongodb-service
+    ports:
+      # Make the BackEnd APIs accessible
+      - 8000:8000
